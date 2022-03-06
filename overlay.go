@@ -1,9 +1,12 @@
 package bubble_overlay
 
 import (
+	"bytes"
 	"strings"
 	"sync"
 	"time"
+
+	"github.com/muesli/ansi"
 
 	tea "github.com/charmbracelet/bubbletea"
 	"github.com/charmbracelet/lipgloss"
@@ -40,7 +43,9 @@ var (
 				BorderRight(true).
 				BorderBottom(true)
 
-	defaultBackdropStyle = lipgloss.NewStyle().Background(lipgloss.Color("255")).Faint(true)
+	defaultBackdropStyle = lipgloss.NewStyle().
+				Background(lipgloss.Color("#4a4a4a")).
+				Foreground(lipgloss.Color("#cfcfcf"))
 )
 
 // FrameMsg indicates that an animation step should occur.
@@ -207,8 +212,11 @@ func (m *Model) Render(overlay, backdrop string) string {
 		return backdrop
 	}
 
-	bw, bh := lipgloss.Size(backdrop)
-	ow, oh := lipgloss.Size(overlay)
+	m.Overlay = defaultOverlayStyle.Render(overlay)
+	m.Backdrop = defaultBackdropStyle.Render(backdrop)
+
+	bw, bh := lipgloss.Size(m.Backdrop)
+	ow, oh := lipgloss.Size(m.Overlay)
 	// calculate the position of the overlay
 	//  (backdropWidth - overlayWidth) * horizontalAlignment = leftOffset
 	leftOffset := int(float64(bw-ow) * float64(m.Horizontal)) // 0 <= leftOffset <= backdropWidth - overlayWidth
@@ -216,8 +224,8 @@ func (m *Model) Render(overlay, backdrop string) string {
 	topOffset := int(float64(bh-oh) * float64(m.Vertical)) // 0 <= topOffset <= backdropHeight - overlayHeight
 
 	// splice the overlay into the backdrop at the calculated offsets
-	blines := strings.Split(backdrop, "\n")
-	olines := strings.Split(overlay, "\n")
+	blines := strings.Split(m.Backdrop, "\n")
+	olines := strings.Split(m.Overlay, "\n")
 	for i := topOffset; i < topOffset+len(olines); i++ {
 		// replace the line starting with line[yOffset] at position xOffset to overlayWidth
 		line := blines[i]
@@ -225,9 +233,16 @@ func (m *Model) Render(overlay, backdrop string) string {
 		left := lipgloss.NewStyle().MaxWidth(leftOffset).Render(line)
 		leftSub := lipgloss.NewStyle().MaxWidth(leftOffset + ow).Render(line)
 
-		// right = line - leftSub
-		// right := strings.Replace(line, leftSub, "", 1)
-		right := string([]byte(line)[len([]byte(leftSub)):])
+		leftSubBytes := []byte(leftSub)
+		if bytes.HasSuffix(leftSubBytes, []byte("[0m")) {
+			leftSubBytes = []byte(line)[:len(leftSubBytes)-4]
+		}
+
+		b := &bytes.Buffer{}
+		w := ansi.Writer{Forward: b}
+		w.Write(leftSubBytes)
+
+		right := string(bytes.Replace([]byte(line), []byte(leftSubBytes), []byte(w.LastSequence()), 1))
 
 		idx := i - topOffset
 		blines[i] = left + olines[idx] + right
