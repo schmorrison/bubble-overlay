@@ -234,7 +234,7 @@ func (m *Model) Render(overlay, backdrop string) string {
 		leftSub := lipgloss.NewStyle().MaxWidth(leftOffset + ow).Render(line)
 
 		leftSubBytes := []byte(leftSub)
-		if bytes.HasSuffix(leftSubBytes, []byte("[0m")) {
+		if bytes.HasSuffix(leftSubBytes, []byte("[0m")) && !bytes.HasSuffix([]byte(line)[:len(leftSubBytes)], []byte("[0m")) {
 			leftSubBytes = []byte(line)[:len(leftSubBytes)-4]
 		}
 
